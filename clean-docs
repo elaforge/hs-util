@@ -1,0 +1,14 @@
+#!/bin/zsh
+# Run in a doc dir and print 'rm' lines for docs for packages that are no
+# longer installed.
+# Just print the rm lines for safety.
+
+setopt extendedglob
+
+for dir in *(/); do
+    if ghc-pkg describe $dir >/dev/null; then
+        continue
+    else
+        echo rm -rf $dir
+    fi
+done

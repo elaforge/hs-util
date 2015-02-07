@@ -1,0 +1,23 @@
+#!/bin/zsh
+# Set up symlinks to set a ghc version as the default.
+
+version=$1
+prefix=$2
+
+unversioned=(runghc hsc2hs haddock)
+
+bin=(runghc ghc ghci ghc-pkg hsc2hs haddock)
+
+for f in $bin; do
+    echo ln -sf $prefix/$f-$version $f
+done
+
+echo -n 'ok? '
+read ok
+if [[ $ok != y ]]; then
+    exit 1
+fi
+
+for f in $bin; do
+    ln -sf $prefix/$f-$version $f
+done

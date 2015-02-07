@@ -1,0 +1,38 @@
+#!/bin/zsh
+# Remove a package, but only if no other installed packages depend on it.
+
+package=$1
+
+if ! ghc-pkg describe $package >/dev/null; then
+    echo no such package: $package
+    exit 1
+fi
+
+# # Otherwise the unregister can succeed, but the rm fails.
+# if [[ $UID -ne 0 ]]; then
+#     echo should be root
+#     exit 1
+# fi
+
+ghcdir=$(ghc --print-libdir)
+
+function field() {
+    ghc-pkg field $package $1 | cut -d' ' -f2-
+    return $?
+}
+
+libdir=$(field library-dirs)
+hidir=$(field import-dirs)
+html=$(dirname $(field haddock-html))
+
+echo rm -rf $libdir $hidir $html
+echo -n 'remove? '
+read response
+if [[ $response = y ]]; then
+    # ghc-pkg unregister will complain if this will break other packages
+    if ! ghc-pkg unregister $package; then
+        exit 1
+    fi
+    rm -rf $libdir $hidir $html
+fi
+

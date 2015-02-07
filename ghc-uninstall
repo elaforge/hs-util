@@ -1,0 +1,20 @@
+#!/bin/zsh
+# Remove a ghc install of the given version.
+
+ver=$1
+bin=/usr/local/bin
+lib=/usr/local/lib
+
+binaries=(runghc ghc ghci ghc-pkg hsc2hs haddock)
+
+dir=$(ghc-$ver --print-libdir)
+
+rm_bins=($dir $bin/${^binaries}-$ver)
+rm_libs=($lib/*/ghc-$ver)
+
+du -hsc $rm_bins $rm_libs
+echo -n 'remove? '
+read response
+if [[ $response = y ]]; then
+    rm -rf $rm_bins $rm_libs
+fi
