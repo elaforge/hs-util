@@ -5,16 +5,16 @@ ver=$1
 bin=/usr/local/bin
 lib=/usr/local/lib
 
-binaries=(runghc ghc ghci ghc-pkg hsc2hs haddock)
+binaries=(runghc ghc ghci ghc-pkg hsc2hs haddock-ghc)
 
 dir=$(ghc-$ver --print-libdir)
 
 rm_bins=($dir $bin/${^binaries}-$ver)
-rm_libs=($lib/*/ghc-$ver)
+rm_libs=($lib/ghc-$ver ~/.cabal/{lib,share,share/doc}/*-ghc-$ver(N))
 
 du -hsc $rm_bins $rm_libs
 echo -n 'remove? '
 read response
 if [[ $response = y ]]; then
-    rm -rf $rm_bins $rm_libs
+    sudo rm -rf $rm_bins $rm_libs
 fi
