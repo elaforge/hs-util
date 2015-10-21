@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+import qualified Data.Char as Char
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
@@ -31,7 +32,7 @@ indent :: Text
 indent = "    "
 
 addBackslash :: [Text] -> [Text]
-addBackslash = map3 add1 addn end . map quote
+addBackslash = map3 add1 addn end . map quote . dedent
     where
     nl = "\\n\\"
     add1 s = indent <> "\"" <> s <> nl
@@ -48,7 +49,7 @@ removeBackslash = map unquote . map3 remove1 removen end
     nl = stripSuffix "\\n\\"
 
 addLines :: [Text] -> [Text]
-addLines = map3 add1 addn end . map quote
+addLines = map3 add1 addn end . map quote . dedent
     where
     add1 line = indent <> "[ \"" <> line <> "\""
     addn line = indent <> ", \"" <> line <> "\""
@@ -60,6 +61,12 @@ removeLines = map unquote . map3 remove1 removen (const Nothing)
     remove = Text.dropWhile (==' ') . stripSuffix "\""
     remove1 = stripPrefix "[ \"" . remove
     removen = stripPrefix ", \"" . remove
+
+dedent :: [Text] -> [Text]
+dedent lines = map (Text.drop indent) lines
+    where
+    indent = if null lines then 0
+        else minimum $ map (Text.length . Text.takeWhile Char.isSpace) lines
 
 quote :: Text -> Text
 quote = Text.replace "\"" "\\\""
