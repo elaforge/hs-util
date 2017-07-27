@@ -1,18 +1,24 @@
 #!/usr/bin/env python
-import sys, os, subprocess, glob
+import sys, os, subprocess, glob, re
 
+# For some reason ghc doesn't append versions to these binaries.
+# 'fix' will put versions on them.
 unversioned = ['hsc2hs', 'hpc']
 binaries = ['runghc', 'ghc', 'ghci', 'ghc-pkg', 'haddock-ghc'] + unversioned
 
 def main():
     prefix = os.environ.get('prefix', '/usr/local')
+    versions = get_versions()
     try:
         mode = modes[sys.argv[1]]
         version = sys.argv[2]
     except (IndexError, KeyError), exc:
-        print exc
         print 'usage: %s %s version' % (sys.argv[0], '|'.join(modes))
+        print 'versions: ', ' '.join(versions)
         return 1
+    if version not in versions:
+        print 'unknown version:', version
+        print 'valid versions: ', ' '.join(versions)
 
     ver = with_version(version)
     ghc = join(prefix, 'bin', ver('ghc'))
@@ -31,7 +37,7 @@ def fix(prefix, ver):
     ask(cmds)
     return 0
 
-def set(prefix, ver):
+def set_version(prefix, ver):
     os.chdir(join(prefix, 'bin'))
     for f in unversioned:
         if not os.path.islink(f):
@@ -61,7 +67,7 @@ def rm(prefix, ver):
         for f in rms:
             run(['rm', '-rf', f])
 
-modes = {'fix': fix, 'set': set, 'rm': rm}
+modes = {'fix': fix, 'set': set_version, 'rm': rm}
 
 
 join = os.path.join
@@ -80,6 +86,12 @@ def run(cmd, fail_ok=False):
     code = subprocess.call(cmd)
     if not fail_ok and code != 0:
         raise Exception('%s returned %s' % (' '.join(cmd), code))
+
+def get_versions():
+    matches = filter(None,
+        (re.match(r'ghc-([0-9].*)', fn)
+            for fn in os.listdir('/usr/local/bin')))
+    return set(m.group(1) for m in matches)
 
 def with_version(version):
     return lambda f: f + '-' + version
