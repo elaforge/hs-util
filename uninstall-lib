@@ -3,16 +3,16 @@
 
 package=$1
 
+# Don't mess with global packages.
+if [[ $UID -eq 0 ]]; then
+    echo "don't be root"
+    exit 1
+fi
+
 if ! ghc-pkg describe $package >/dev/null; then
     echo no such package: $package
     exit 1
 fi
-
-# # Otherwise the unregister can succeed, but the rm fails.
-# if [[ $UID -ne 0 ]]; then
-#     echo should be root
-#     exit 1
-# fi
 
 ghcdir=$(ghc --print-libdir)
 
