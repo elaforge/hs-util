@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import sys, os, subprocess, glob, re
 
 # For some reason ghc doesn't append versions to these binaries.
@@ -12,18 +13,18 @@ def main():
     try:
         mode = modes[sys.argv[1]]
         version = sys.argv[2]
-    except (IndexError, KeyError), exc:
-        print 'usage: %s %s version' % (sys.argv[0], '|'.join(modes))
-        print 'versions: ', ' '.join(versions)
+    except (IndexError, KeyError) as exc:
+        print('usage: %s %s version' % (sys.argv[0], '|'.join(modes)))
+        print('versions: ', ' '.join(versions))
         return 1
     if version not in versions:
-        print 'unknown version:', version
-        print 'valid versions: ', ' '.join(versions)
+        print('unknown version:', version)
+        print('valid versions: ', ' '.join(versions))
 
     ver = with_version(version)
     ghc = join(prefix, 'bin', ver('ghc'))
     if not os.path.exists(ghc):
-        print '%s does\'t exist, is the version right?' % (ghc,)
+        print('%s does\'t exist, is the version right?' % (ghc,))
         return 1
     return mode(prefix, ver)
 
@@ -41,7 +42,7 @@ def set_version(prefix, ver):
     os.chdir(join(prefix, 'bin'))
     for f in unversioned:
         if not os.path.islink(f):
-            print f, 'is unversioned'
+            print(f, 'is unversioned')
             return 1
     cmds = [['ln', '-sf', ver(f), f] for f in binaries]
     cmds.append(['ln', '-sf', 'haddock-ghc', 'haddock'])
@@ -57,7 +58,7 @@ def rm(prefix, ver):
     ]
 
     rms.extend(join(bin, ver(f)) for f in binaries)
-    cabal = filter(None, [
+    cabal = concat([
         glob.glob(join(os.environ['HOME'], '.cabal', sub, ver('*-ghc')))
         for sub in ['lib', 'share', 'share/doc']
     ])
@@ -69,15 +70,14 @@ def rm(prefix, ver):
 
 modes = {'fix': fix, 'set': set_version, 'rm': rm}
 
-
 join = os.path.join
 
 def ask(cmds):
     if not cmds:
-        print 'no cmds to run'
+        print('no cmds to run')
         return
     for c in cmds:
-        print ' '.join(c)
+        print(' '.join(c))
     if raw_input('ok? ') == 'y':
         for c in cmds:
             run(c)
@@ -95,6 +95,17 @@ def get_versions():
 
 def with_version(version):
     return lambda f: f + '-' + version
+
+def concat(xs):
+    out = []
+    for x in xs:
+        out.extend(x)
+    return out
+
+try:
+    raw_input = input # python3 renamed raw_input to input
+except NameError:
+    pass
 
 
 if __name__ == '__main__':
