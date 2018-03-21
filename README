@@ -1,0 +1,7 @@
+StrLit: Convert between raw text and backslash continuation or
+Text.unlines style strings.  I toggle between the two representations
+with vim bindings to edit large string literals in Haskell.
+
+ghc-version.py: Manage multiple installed ghc versions.
+
+uninstall-lib: uninstall packages.
