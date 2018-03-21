@@ -63,10 +63,14 @@ def rm(prefix, ver):
         for sub in ['lib', 'share', 'share/doc']
     ])
     rms.extend(cabal)
+    packages = glob.glob(join(os.environ['HOME'], '.ghc', ver('*')))
+    rms.extend(packages)
     run(['du', '-hsc'] + rms, fail_ok=True)
     if raw_input('type "rm -rf" to remove: ') == 'rm -rf':
         for f in rms:
             run(['rm', '-rf', f])
+    else:
+        print('not removing')
 
 modes = {'fix': fix, 'set': set_version, 'rm': rm}
 
