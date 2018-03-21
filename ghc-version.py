@@ -57,11 +57,11 @@ def rm(prefix, ver):
     ]
 
     rms.extend(join(bin, ver(f)) for f in binaries)
-    cabal = [
+    cabal = filter(None, [
         glob.glob(join(os.environ['HOME'], '.cabal', sub, ver('*-ghc')))
         for sub in ['lib', 'share', 'share/doc']
-    ]
-    rms.extend(c for c in cabal)
+    ])
+    rms.extend(cabal)
     run(['du', '-hsc'] + rms, fail_ok=True)
     if raw_input('type "rm -rf" to remove: ') == 'rm -rf':
         for f in rms:
