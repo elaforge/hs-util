@@ -2,7 +2,8 @@
 {-
 
 TODO
-    - options with --
+    * options with --
+    - --explicit-nl adds leading space
     - real tests, empty line handling and round trip
     - ignore trailing or leading space
     - single line works
@@ -24,7 +25,7 @@ import qualified System.Exit as Exit
 
 usage :: String
 usage =
-    "StrLit [ -explicit-nl] [ -{add,remove,toggle}-{backslash,lines} ]\n\
+    "StrLit [ --explicit-nl] [ --{add,remove,toggle}-{backslash,lines} ]\n\
     \\n\
     \Convert between plain text and either backslash-continued string\n\
     \literals, or list of lines style strings.  This is to work around\n\
@@ -42,17 +43,17 @@ data Operation = Add | Remove deriving (Eq, Show)
 data Kind = Backslash | Lines deriving (Eq, Show)
 
 parseArgs :: [String] -> Maybe (Bool, Maybe Operation, Kind)
-parseArgs args = add <$> case filter (/="-explicit-nl") args of
-    ["-toggle-backslash"] -> Just (Nothing, Backslash)
-    ["-add-backslash"] -> Just (Just Add, Backslash)
-    ["-remove-backslash"] -> Just (Just Remove, Backslash)
-    ["-toggle-lines"] -> Just (Nothing, Lines)
-    ["-add-lines"] -> Just (Just Add, Lines)
-    ["-remove-lines"] -> Just (Just Remove, Lines)
+parseArgs args = add <$> case filter (/="--explicit-nl") args of
+    ["--toggle-backslash"] -> Just (Nothing, Backslash)
+    ["--add-backslash"] -> Just (Just Add, Backslash)
+    ["--remove-backslash"] -> Just (Just Remove, Backslash)
+    ["--toggle-lines"] -> Just (Nothing, Lines)
+    ["--add-lines"] -> Just (Just Add, Lines)
+    ["--remove-lines"] -> Just (Just Remove, Lines)
     _ -> Nothing
     where
     add (b, c) = (explicitNl, b, c)
-    explicitNl = "-explicit-nl" `elem` args
+    explicitNl = "--explicit-nl" `elem` args
 
 process :: (Bool, Maybe Operation, Kind) -> [Text] -> [Text]
 process (explicitNl, op, kind) = case (explicitNl, op, kind) of
