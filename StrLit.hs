@@ -12,8 +12,10 @@ main :: IO ()
 main = do
     args <- Environment.getArgs
     process <- case args of
+        ["-toggle-backslash"] -> return toggleBackslash
         ["-add-backslash"] -> return addBackslash
         ["-remove-backslash"] -> return removeBackslash
+        ["-toggle-lines"] -> return toggleLines
         ["-add-lines"] -> return addLines
         ["-remove-lines"] -> return removeLines
         _ -> usage
@@ -22,7 +24,7 @@ main = do
 
 usage :: IO a
 usage = error $
-    "usage: StrLit [ -{add,remove}-{backslash,lines} ]\n\
+    "usage: StrLit [ -{add,remove,toggle}-{backslash,lines} ]\n\
     \\n\
     \Convert between plain text and either backslash-continued string\n\
     \literals, or list of lines style strings.  This is to work around\n\
@@ -31,13 +33,22 @@ usage = error $
 indent :: Text
 indent = "    "
 
+toggleBackslash :: [Text] -> [Text]
+toggleBackslash lines
+    | inferBackslashed lines = removeBackslash lines
+    | otherwise = addBackslash lines
+
+inferBackslashed :: [Text] -> Bool
+inferBackslashed [] = False
+inferBackslashed (line:_) = "\"" `Text.isPrefixOf` Text.stripStart line
+
 addBackslash :: [Text] -> [Text]
-addBackslash = map3 add1 addn end . map quote . dedent
+addBackslash = map (indent<>) . map3 add1 addn end . map quote . dedent
     where
     nl = "\\n\\"
-    add1 s = indent <> "\"" <> s <> nl
-    addn s = indent <> "\\" <> s <> nl
-    end s = Just $ indent <> "\\" <> s <> "\\n\""
+    add1 s = "\"" <> s <> nl
+    addn s = "\\" <> s <> nl
+    end s = Just $ "\\" <> s <> "\\n\""
 
 removeBackslash :: [Text] -> [Text]
 removeBackslash = map unquote . map3 remove1 removen end
@@ -47,6 +58,15 @@ removeBackslash = map unquote . map3 remove1 removen end
     end = Just . stripPrefix "\\" . spaces . stripSuffix "\\n\""
     spaces = Text.dropWhile (==' ')
     nl = stripSuffix "\\n\\"
+
+toggleLines :: [Text] -> [Text]
+toggleLines lines
+    | inferList lines = removeLines lines
+    | otherwise = addLines lines
+
+inferList :: [Text] -> Bool
+inferList [] = False
+inferList (line:_) = "[" `Text.isPrefixOf` Text.stripStart line
 
 addLines :: [Text] -> [Text]
 addLines = map3 add1 addn end . map quote . dedent
