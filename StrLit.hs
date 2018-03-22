@@ -1,49 +1,142 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-
+
+TODO
+    - options with --
+    - real tests, empty line handling and round trip
+    - ignore trailing or leading space
+    - single line works
+    - vim config uses variable for --explicit-nl
+    - documentation
+-}
+import GHC.Stack (HasCallStack)
 import qualified Data.Char as Char
+import qualified Data.List as List
+import qualified Data.Maybe as Maybe
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.Text.IO as Text.IO
 
 import qualified System.Environment as Environment
+import qualified System.Exit as Exit
 
 
-main :: IO ()
-main = do
-    args <- Environment.getArgs
-    process <- case args of
-        ["-toggle-backslash"] -> return toggleBackslash
-        ["-add-backslash"] -> return addBackslash
-        ["-remove-backslash"] -> return removeBackslash
-        ["-toggle-lines"] -> return toggleLines
-        ["-add-lines"] -> return addLines
-        ["-remove-lines"] -> return removeLines
-        _ -> usage
-    text <- Text.IO.getContents
-    Text.IO.putStr $ Text.unlines $ process $ Text.lines text
-
-usage :: IO a
-usage = error $
-    "usage: StrLit [ -{add,remove,toggle}-{backslash,lines} ]\n\
+usage :: String
+usage =
+    "StrLit [ -explicit-nl] [ -{add,remove,toggle}-{backslash,lines} ]\n\
     \\n\
     \Convert between plain text and either backslash-continued string\n\
     \literals, or list of lines style strings.  This is to work around\n\
-    \haskell's lack of multi-line string literals."
+    \haskell's lack of multi-line string literals.\n"
 
-indent :: Text
-indent = "    "
+main :: IO ()
+main = do
+    let showUsage = putStr usage >> Exit.exitFailure
+    args <- maybe showUsage return . parseArgs =<< Environment.getArgs
+    text <- Text.IO.getContents
+    -- TODO Text.interact?
+    Text.IO.putStr $ Text.unlines $ process args $ Text.lines text
 
-toggleBackslash :: [Text] -> [Text]
-toggleBackslash lines
-    | inferBackslashed lines = removeBackslash lines
-    | otherwise = addBackslash lines
+data Operation = Add | Remove deriving (Eq, Show)
+data Kind = Backslash | Lines deriving (Eq, Show)
+
+parseArgs :: [String] -> Maybe (Bool, Maybe Operation, Kind)
+parseArgs args = add <$> case filter (/="-explicit-nl") args of
+    ["-toggle-backslash"] -> Just (Nothing, Backslash)
+    ["-add-backslash"] -> Just (Just Add, Backslash)
+    ["-remove-backslash"] -> Just (Just Remove, Backslash)
+    ["-toggle-lines"] -> Just (Nothing, Lines)
+    ["-add-lines"] -> Just (Just Add, Lines)
+    ["-remove-lines"] -> Just (Just Remove, Lines)
+    _ -> Nothing
+    where
+    add (b, c) = (explicitNl, b, c)
+    explicitNl = "-explicit-nl" `elem` args
+
+process :: (Bool, Maybe Operation, Kind) -> [Text] -> [Text]
+process (explicitNl, op, kind) = case (explicitNl, op, kind) of
+    (_, Nothing, Backslash) -> \lines -> if inferBackslashed lines
+        then process (explicitNl, Just Remove, kind) lines
+        else process (explicitNl, Just Add, kind) lines
+    (_, Nothing, Lines) -> \lines -> if inferList lines
+        then process (explicitNl, Just Remove, kind) lines
+        else process (explicitNl, Just Add, kind) lines
+
+    (False, Just Add, Backslash) -> addBackslash
+    (False, Just Remove,  Backslash) -> removeBackslash
+    (True, Just Add, Backslash) -> addBackslashExplicit
+    (True, Just Remove, Backslash) -> removeBackslashExplicit
+    (_, Just Add, Lines) -> addLines
+    (_, Just Remove, Lines) -> removeLines
+
+indentation :: Text
+indentation = "    "
+
+-- * backslashes
 
 inferBackslashed :: [Text] -> Bool
 inferBackslashed [] = False
 inferBackslashed (line:_) = "\"" `Text.isPrefixOf` Text.stripStart line
 
+{-
+    An extra newline becomes a leading \n:
+
+    > this is
+    >  raw
+    >
+    > text
+
+    =>
+
+    > "this is\
+    > \ raw\
+    > \\ntext"
+-}
+addBackslashExplicit :: [Text] -> [Text]
+addBackslashExplicit = indent . map3 add1 addn end . collectNewlines . dedent
+    where
+    add1 s = "\"" <> s <> "\\"
+    addn s = "\\" <> s <> "\\"
+    end s = Just $ "\\" <> s <> "\""
+
+-- TODO real tests
+_test_addBackslashExplicit = Text.unlines $ addBackslashExplicit
+    [ "this is"
+    , " raw"
+    , ""
+    , "text"
+    ]
+
+_test_removeBackslashExplicit = Text.unlines $ removeBackslashExplicit $
+    Text.lines _test_addBackslashExplicit
+
+_test_addBackslash = Text.IO.putStr $ Text.unlines $ addBackslash
+    [ "    foo"
+    , ""
+    , "    bar"
+    ]
+
+removeBackslashExplicit :: [Text] -> [Text]
+removeBackslashExplicit =
+    indent . concatMap addNewlines . map3 remove1 removen end . dedent
+    where
+    addNewlines s =
+        replicate (length pre) "" ++ [Text.intercalate "\\n" post]
+        where (pre, post) = span Text.null $ Text.splitOn "\\n" s
+    remove1 = stripPrefix "\"" . stripSuffix "\\"
+    removen = stripPrefix "\\" . stripSuffix "\\"
+    end = Just . stripPrefix "\\" . stripSuffix "\""
+
+collectNewlines :: [Text] -> [Text]
+collectNewlines = filter (not . Text.null) . snd . List.mapAccumL collect 0
+    where
+    collect newlines line
+        | Text.strip line == "" = (newlines+1, "")
+        | otherwise = (0, Text.replicate newlines "\\n" <> line)
+
 addBackslash :: [Text] -> [Text]
-addBackslash = map (indent<>) . map3 add1 addn end . map quote . dedent
+addBackslash = indent . map3 add1 addn end . map quote . dedent
     where
     nl = "\\n\\"
     add1 s = "\"" <> s <> nl
@@ -51,7 +144,7 @@ addBackslash = map (indent<>) . map3 add1 addn end . map quote . dedent
     end s = Just $ "\\" <> s <> "\\n\""
 
 removeBackslash :: [Text] -> [Text]
-removeBackslash = map unquote . map3 remove1 removen end
+removeBackslash = indent . map unquote . map3 remove1 removen end . dedent
     where
     remove1 = stripPrefix "\"" . spaces . nl
     removen = stripPrefix "\\" . spaces . nl
@@ -59,10 +152,7 @@ removeBackslash = map unquote . map3 remove1 removen end
     spaces = Text.dropWhile (==' ')
     nl = stripSuffix "\\n\\"
 
-toggleLines :: [Text] -> [Text]
-toggleLines lines
-    | inferList lines = removeLines lines
-    | otherwise = addLines lines
+-- * lines
 
 inferList :: [Text] -> Bool
 inferList [] = False
@@ -71,9 +161,9 @@ inferList (line:_) = "[" `Text.isPrefixOf` Text.stripStart line
 addLines :: [Text] -> [Text]
 addLines = map3 add1 addn end . map quote . dedent
     where
-    add1 line = indent <> "[ \"" <> line <> "\""
-    addn line = indent <> ", \"" <> line <> "\""
-    end line = Just $ addn line <> "\n" <> indent <> "]"
+    add1 line = indentation <> "[ \"" <> line <> "\""
+    addn line = indentation <> ", \"" <> line <> "\""
+    end line = Just $ addn line <> "\n" <> indentation <> "]"
 
 removeLines :: [Text] -> [Text]
 removeLines = map unquote . map3 remove1 removen (const Nothing)
@@ -82,11 +172,17 @@ removeLines = map unquote . map3 remove1 removen (const Nothing)
     remove1 = stripPrefix "[ \"" . remove
     removen = stripPrefix ", \"" . remove
 
+indent :: [Text] -> [Text]
+indent = map (\s -> if Text.null s then "" else indentation <> s)
+
 dedent :: [Text] -> [Text]
-dedent lines = map (Text.drop indent) lines
+dedent lines = map (Text.drop indentation) lines
     where
-    indent = if null lines then 0
-        else minimum $ map (Text.length . Text.takeWhile Char.isSpace) lines
+    indentation
+        | null lines = 0
+        | otherwise = minimum $
+            map (Text.length . Text.takeWhile Char.isSpace) $
+            filter (not . Text.all Char.isSpace) lines
 
 quote :: Text -> Text
 quote = Text.replace "\"" "\\\""
@@ -96,18 +192,18 @@ unquote = Text.replace "\\\"" "\""
 
 map3 :: (a -> b) -> (a -> b) -> (a -> Maybe b) -> [a] -> [b]
 map3 _ _ _ [] = []
-map3 f g end (x:xs) = f x : go xs
+map3 initial middle end (x:xs) = initial x : go xs
     where
     go [] = []
     go [x] = maybe [] (:[]) (end x)
-    go (x:xs) = g x : go xs
+    go (x:xs) = middle x : go xs
 
-stripSuffix :: Text -> Text -> Text
+stripSuffix :: HasCallStack => Text -> Text -> Text
 stripSuffix s text =
     maybe (error $ "expected suffix " <> show s <> " on " <> show text) id $
         Text.stripSuffix s text
 
-stripPrefix :: Text -> Text -> Text
+stripPrefix :: HasCallStack => Text -> Text -> Text
 stripPrefix s text =
     maybe (error $ "expected prefix " <> show s <> " on " <> show text) id $
         Text.stripPrefix s text
