@@ -3,17 +3,18 @@
 
 TODO
     * options with --
-    - --explicit-nl adds leading space
+    * --explicit-nl adds leading space
     - real tests, empty line handling and round trip
     - ignore trailing or leading space
     - single line works
     - vim config uses variable for --explicit-nl
+    - configurable indentation
+    - explicit-nl for lines mode
     - documentation
 -}
 import GHC.Stack (HasCallStack)
 import qualified Data.Char as Char
 import qualified Data.List as List
-import qualified Data.Maybe as Maybe
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
@@ -25,7 +26,7 @@ import qualified System.Exit as Exit
 
 usage :: String
 usage =
-    "StrLit [ --explicit-nl] [ --{add,remove,toggle}-{backslash,lines} ]\n\
+    "StrLit [ --explicit-nl --{add,remove,toggle}-{backslash,lines} ]\n\
     \\n\
     \Convert between plain text and either backslash-continued string\n\
     \literals, or list of lines style strings.  This is to work around\n\
@@ -80,11 +81,12 @@ inferBackslashed :: [Text] -> Bool
 inferBackslashed [] = False
 inferBackslashed (line:_) = "\"" `Text.isPrefixOf` Text.stripStart line
 
-{-
-    An extra newline becomes a leading \n:
+{- |
+    An extra newline becomes a leading \n.  A leading space is added if
+    there is no leading \n, except for the first line.
 
     > this is
-    >  raw
+    > raw
     >
     > text
 
@@ -98,13 +100,23 @@ addBackslashExplicit :: [Text] -> [Text]
 addBackslashExplicit = indent . map3 add1 addn end . collectNewlines . dedent
     where
     add1 s = "\"" <> s <> "\\"
-    addn s = "\\" <> s <> "\\"
-    end s = Just $ "\\" <> s <> "\""
+    addn s = "\\" <> leadingSpace s <> "\\"
+    end s = Just $ "\\" <> leadingSpace s <> "\""
+    leadingSpace s
+        | "\\n" `Text.isPrefixOf` s = s
+        | otherwise = " " <> s
+
+collectNewlines :: [Text] -> [Text]
+collectNewlines = filter (not . Text.null) . snd . List.mapAccumL collect 0
+    where
+    collect newlines line
+        | Text.strip line == "" = (newlines+1, "")
+        | otherwise = (0, Text.replicate newlines "\\n" <> line)
 
 -- TODO real tests
 _test_addBackslashExplicit = Text.unlines $ addBackslashExplicit
     [ "this is"
-    , " raw"
+    , "raw"
     , ""
     , "text"
     ]
@@ -118,9 +130,13 @@ _test_addBackslash = Text.IO.putStr $ Text.unlines $ addBackslash
     , "    bar"
     ]
 
+{- Invert 'addBackslashExplicit'.  Drop a leading space unless there was
+    a leading \n.
+-}
 removeBackslashExplicit :: [Text] -> [Text]
 removeBackslashExplicit =
-    indent . concatMap addNewlines . map3 remove1 removen end . dedent
+    indent . map stripLeadingSpace . zipPrev . concatMap addNewlines
+        . map3 remove1 removen end . dedent
     where
     addNewlines s =
         replicate (length pre) "" ++ [Text.intercalate "\\n" post]
@@ -128,13 +144,10 @@ removeBackslashExplicit =
     remove1 = stripPrefix "\"" . stripSuffix "\\"
     removen = stripPrefix "\\" . stripSuffix "\\"
     end = Just . stripPrefix "\\" . stripSuffix "\""
-
-collectNewlines :: [Text] -> [Text]
-collectNewlines = filter (not . Text.null) . snd . List.mapAccumL collect 0
-    where
-    collect newlines line
-        | Text.strip line == "" = (newlines+1, "")
-        | otherwise = (0, Text.replicate newlines "\\n" <> line)
+    stripLeadingSpace (Just "", s) = s
+    stripLeadingSpace (_, s)
+        | ' ' : c : _ <- Text.unpack s, c /= ' ' = Text.drop 1 s
+        | otherwise = s
 
 addBackslash :: [Text] -> [Text]
 addBackslash = indent . map3 add1 addn end . map quote . dedent
@@ -208,3 +221,6 @@ stripPrefix :: HasCallStack => Text -> Text -> Text
 stripPrefix s text =
     maybe (error $ "expected prefix " <> show s <> " on " <> show text) id $
         Text.stripPrefix s text
+
+zipPrev :: [a] -> [(Maybe a, a)]
+zipPrev xs = zip (Nothing : map Just xs) xs
