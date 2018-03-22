@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-
 
 TODO
@@ -12,7 +13,6 @@ TODO
     - explicit-nl for lines mode
     - documentation
 -}
-import GHC.Stack (HasCallStack)
 import qualified Data.Char as Char
 import qualified Data.List as List
 import Data.Monoid ((<>))
@@ -20,6 +20,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.Text.IO as Text.IO
 
+import GHC.Stack (HasCallStack)
 import qualified System.Environment as Environment
 import qualified System.Exit as Exit
 
@@ -101,7 +102,7 @@ addBackslashExplicit = indent . map3 add1 addn end . collectNewlines . dedent
     where
     add1 s = "\"" <> s <> "\\"
     addn s = "\\" <> leadingSpace s <> "\\"
-    end s = Just $ "\\" <> leadingSpace s <> "\""
+    end s = "\\" <> leadingSpace s <> "\""
     leadingSpace s
         | "\\n" `Text.isPrefixOf` s = s
         | otherwise = " " <> s
@@ -143,7 +144,7 @@ removeBackslashExplicit =
         where (pre, post) = span Text.null $ Text.splitOn "\\n" s
     remove1 = stripPrefix "\"" . stripSuffix "\\"
     removen = stripPrefix "\\" . stripSuffix "\\"
-    end = Just . stripPrefix "\\" . stripSuffix "\""
+    end = stripPrefix "\\" . stripSuffix "\""
     stripLeadingSpace (Just "", s) = s
     stripLeadingSpace (_, s)
         | ' ' : c : _ <- Text.unpack s, c /= ' ' = Text.drop 1 s
@@ -155,14 +156,14 @@ addBackslash = indent . map3 add1 addn end . map quote . dedent
     nl = "\\n\\"
     add1 s = "\"" <> s <> nl
     addn s = "\\" <> s <> nl
-    end s = Just $ "\\" <> s <> "\\n\""
+    end s = "\\" <> s <> "\\n\""
 
 removeBackslash :: [Text] -> [Text]
 removeBackslash = indent . map unquote . map3 remove1 removen end . dedent
     where
     remove1 = stripPrefix "\"" . spaces . nl
     removen = stripPrefix "\\" . spaces . nl
-    end = Just . stripPrefix "\\" . spaces . stripSuffix "\\n\""
+    end = stripPrefix "\\" . spaces . stripSuffix "\\n\""
     spaces = Text.dropWhile (==' ')
     nl = stripSuffix "\\n\\"
 
@@ -177,14 +178,17 @@ addLines = map3 add1 addn end . map quote . dedent
     where
     add1 line = indentation <> "[ \"" <> line <> "\""
     addn line = indentation <> ", \"" <> line <> "\""
-    end line = Just $ addn line <> "\n" <> indentation <> "]"
+    end line = addn line <> "\n" <> indentation <> "]"
 
 removeLines :: [Text] -> [Text]
-removeLines = map unquote . map3 remove1 removen (const Nothing)
+removeLines = map unquote . map3 remove1 removen id . dropLast
     where
     remove = Text.dropWhile (==' ') . stripSuffix "\""
     remove1 = stripPrefix "[ \"" . remove
     removen = stripPrefix ", \"" . remove
+    -- The last line should be ']'
+    dropLast [] = []
+    dropLast xs = List.init xs
 
 indent :: [Text] -> [Text]
 indent = map (\s -> if Text.null s then "" else indentation <> s)
@@ -204,12 +208,12 @@ quote = Text.replace "\"" "\\\""
 unquote :: Text -> Text
 unquote = Text.replace "\\\"" "\""
 
-map3 :: (a -> b) -> (a -> b) -> (a -> Maybe b) -> [a] -> [b]
+map3 :: (a -> b) -> (a -> b) -> (a -> b) -> [a] -> [b]
 map3 _ _ _ [] = []
 map3 initial middle end (x:xs) = initial x : go xs
     where
     go [] = []
-    go [x] = maybe [] (:[]) (end x)
+    go [x] = [end x]
     go (x:xs) = middle x : go xs
 
 stripSuffix :: HasCallStack => Text -> Text -> Text
