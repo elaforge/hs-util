@@ -15,11 +15,11 @@ def main():
         version = sys.argv[2]
     except (IndexError, KeyError) as exc:
         print('usage: %s %s version' % (sys.argv[0], '|'.join(modes)))
-        print('versions: ', ' '.join(versions))
+        print('versions:', ' '.join(versions))
         return 1
     if version not in versions:
         print('unknown version:', version)
-        print('valid versions: ', ' '.join(versions))
+        print('valid versions:', ' '.join(versions))
 
     ver = with_version(version)
     ghc = join(prefix, 'bin', ver('ghc'))
@@ -45,7 +45,20 @@ def set_version(prefix, ver):
             print(f, 'is unversioned')
             return 1
     cmds = [['ln', '-sf', ver(f), f] for f in binaries]
+    # ver('haddock-ghc') is already linked to 'haddock-ghc'.
     cmds.append(['ln', '-sf', 'haddock-ghc', 'haddock'])
+    cabal = join(os.environ['HOME'], '.cabal')
+    cmds.append([
+        'ln', '-sf', '/usr/local/share/doc/%s/html' %(ver('ghc'),),
+        join(cabal, 'ghc-html')
+    ])
+    [doc] = [
+        fn for fn in os.listdir(join(cabal, 'share/doc'))
+        if fn.endswith(ver('ghc'))
+    ]
+    cmds.append([
+        'ln', '-sf', doc, join(cabal, 'share/current')
+    ])
     ask(cmds)
 
 def rm(prefix, ver):
@@ -55,6 +68,7 @@ def rm(prefix, ver):
     rms = [
         subprocess.check_output([ver('ghc'), '--print-libdir']).strip(),
         join(lib, ver('ghc')),
+        join('/usr/local/share', ver('ghc')),
     ]
 
     rms.extend(join(bin, ver(f)) for f in binaries)
@@ -107,9 +121,9 @@ def concat(xs):
     return out
 
 try:
-    raw_input = input # python3 renamed raw_input to input
+    raw_input
 except NameError:
-    pass
+    raw_input = input # python3 renamed raw_input to input
 
 
 if __name__ == '__main__':
