@@ -44,12 +44,12 @@ def set_version(prefix, ver):
         if not os.path.islink(f):
             print(f, 'is unversioned')
             return 1
-    cmds = [['ln', '-sf', ver(f), f] for f in binaries]
+    cmds = [['ln', '-shf', ver(f), f] for f in binaries]
     # ver('haddock-ghc') is already linked to 'haddock-ghc'.
     cmds.append(['ln', '-sf', 'haddock-ghc', 'haddock'])
     cabal = join(os.environ['HOME'], '.cabal')
     cmds.append([
-        'ln', '-sf', '/usr/local/share/doc/%s/html' %(ver('ghc'),),
+        'ln', '-shf', '/usr/local/share/doc/%s/html' %(ver('ghc'),),
         join(cabal, 'ghc-html')
     ])
     [doc] = [
@@ -57,7 +57,7 @@ def set_version(prefix, ver):
         if fn.endswith(ver('ghc'))
     ]
     cmds.append([
-        'ln', '-sf', doc, join(cabal, 'share/current')
+        'ln', '-shf', doc, join(cabal, 'share/current')
     ])
     ask(cmds)
 
