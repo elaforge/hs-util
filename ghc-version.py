@@ -57,7 +57,7 @@ def set_version(prefix, ver):
         if fn.endswith(ver('ghc'))
     ]
     cmds.append([
-        'ln', '-shf', doc, join(cabal, 'share/current')
+        'ln', '-shf', doc, join(cabal, 'share/doc/current')
     ])
     ask(cmds)
 
