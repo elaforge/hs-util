@@ -38,27 +38,27 @@ def fix(prefix, ver):
     ask(cmds)
     return 0
 
+ln = ['ln', '-shf']
+
 def set_version(prefix, ver):
     os.chdir(join(prefix, 'bin'))
     for f in unversioned:
         if not os.path.islink(f):
             print(f, 'is unversioned')
             return 1
-    cmds = [['ln', '-shf', ver(f), f] for f in binaries]
+    cmds = [ln + [ver(f), f] for f in binaries]
     # ver('haddock-ghc') is already linked to 'haddock-ghc'.
-    cmds.append(['ln', '-sf', 'haddock-ghc', 'haddock'])
+    cmds.append(ln + ['haddock-ghc', 'haddock'])
     cabal = join(os.environ['HOME'], '.cabal')
-    cmds.append([
-        'ln', '-shf', '/usr/local/share/doc/%s/html' %(ver('ghc'),),
+    cmds.append(ln + [
+        '/usr/local/share/doc/%s/html' %(ver('ghc'),),
         join(cabal, 'ghc-html')
     ])
     [doc] = [
         fn for fn in os.listdir(join(cabal, 'share/doc'))
         if fn.endswith(ver('ghc'))
     ]
-    cmds.append([
-        'ln', '-shf', doc, join(cabal, 'share/doc/current')
-    ])
+    cmds.append(ln + [doc, join(cabal, 'share/doc/current')])
     ask(cmds)
 
 def rm(prefix, ver):
