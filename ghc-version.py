@@ -59,6 +59,7 @@ def set_version(prefix, ver):
         if fn.endswith(ver('ghc'))
     ]
     cmds.append(ln + [doc, join(cabal, 'share/doc/current')])
+    cmds.append(ln + [ver('ghc'), '/usr/local/share/doc/ghc'])
     ask(cmds)
 
 def rm(prefix, ver):
@@ -69,6 +70,7 @@ def rm(prefix, ver):
         subprocess.check_output([ver('ghc'), '--print-libdir']).strip(),
         join(lib, ver('ghc')),
         join('/usr/local/share', ver('ghc')),
+        join('/usr/local/share/doc', ver('ghc')),
     ]
 
     rms.extend(join(bin, ver(f)) for f in binaries)
